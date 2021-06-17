@@ -81,7 +81,7 @@ where
         }
     }
 
-    pub(crate) fn to_bytes(self) -> Bytes {
+    pub(crate) fn into_bytes(self) -> Bytes {
         let mut buf;
         match self.frame_type {
             Type::Count(count) => {
@@ -155,29 +155,41 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_to_bytes() {
+    fn test_into_bytes() {
         let v: &[&str] = &[];
-        assert_eq!(Metric::increase("test", v).to_bytes().as_ref(), b"test:1|c");
         assert_eq!(
-            Metric::decrease("test", v).to_bytes().as_ref(),
+            Metric::increase("test", v).into_bytes().as_ref(),
+            b"test:1|c"
+        );
+        assert_eq!(
+            Metric::decrease("test", v).into_bytes().as_ref(),
             b"test:-1|c"
         );
-        assert_eq!(Metric::count(2, "test", v).to_bytes().as_ref(), b"test:2|c");
         assert_eq!(
-            Metric::gauge("1.2", "test", v).to_bytes().as_ref(),
+            Metric::count(2, "test", v).into_bytes().as_ref(),
+            b"test:2|c"
+        );
+        assert_eq!(
+            Metric::gauge("1.2", "test", v).into_bytes().as_ref(),
             b"test:1.2|g"
         );
         assert_eq!(
-            Metric::histogram("1.2", "test", v).to_bytes().as_ref(),
+            Metric::histogram("1.2", "test", v).into_bytes().as_ref(),
             b"test:1.2|h"
         );
         assert_eq!(
-            Metric::distribution("1.2", "test", v).to_bytes().as_ref(),
+            Metric::distribution("1.2", "test", v).into_bytes().as_ref(),
             b"test:1.2|d"
         );
         assert_eq!(
-            Metric::set("1.2", "test", v).to_bytes().as_ref(),
+            Metric::set("1.2", "test", v).into_bytes().as_ref(),
             b"test:1.2|s"
+        );
+        assert_eq!(
+            Metric::increase("test", &["a:b", "c"])
+                .into_bytes()
+                .as_ref(),
+            b"test:1|c|#a:b,c"
         );
     }
 }
