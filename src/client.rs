@@ -1,4 +1,4 @@
-use crate::metric::Metric;
+use crate::Metric;
 use std::io::Error;
 use tokio::net::{ToSocketAddrs, UdpSocket};
 
@@ -16,11 +16,7 @@ impl Client {
         Ok(Self { socket })
     }
 
-    pub async fn send<I, T>(&self, metric: Metric<'_, I, T>) -> Result<(), Error>
-    where
-        I: IntoIterator<Item = T>,
-        T: AsRef<str>,
-    {
+    pub async fn send(&self, metric: Metric<'_>) -> Result<(), Error> {
         let bytes = metric.into_bytes();
         self.socket.send(&bytes).await?;
         Ok(())
@@ -34,11 +30,10 @@ mod test {
     #[tokio::test]
     async fn test_client() {
         let udp_receiver = UdpSocket::bind("127.0.0.1:8125").await.unwrap();
-        let v: &[&str] = &[];
         let client = Client::new("127.0.0.1:1234", "127.0.0.1:8125")
             .await
             .unwrap();
-        client.send(Metric::increase("test", v)).await.unwrap();
+        client.send(Metric::increase("test")).await.unwrap();
         udp_receiver.connect("127.0.0.1:1234").await.unwrap();
         let mut bytes_received: usize = 0;
         let mut buf = [0; 8];

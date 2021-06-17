@@ -1,3 +1,4 @@
+use crate::Tag;
 use bytes::{Bytes, BytesMut};
 
 enum Type<'a> {
@@ -10,75 +11,52 @@ enum Type<'a> {
     Set(&'a str),
 }
 
-pub struct Metric<'a, I, T>
-where
-    I: IntoIterator<Item = T>,
-    T: AsRef<str>,
-{
+pub struct Metric<'a> {
     frame_type: Type<'a>,
     message: &'a str,
-    tags: I,
+    tags: Vec<Tag<'a>>,
 }
 
-impl<'a, I, T> Metric<'a, I, T>
-where
-    I: IntoIterator<Item = T>,
-    T: AsRef<str>,
-{
-    pub fn increase(message: &'a str, tags: I) -> Self {
+impl<'a> Metric<'a> {
+    fn new(frame_type: Type<'a>, message: &'a str) -> Self {
         Self {
-            frame_type: Type::Increase,
+            frame_type,
             message,
-            tags,
+            tags: vec![],
         }
     }
 
-    pub fn decrease(message: &'a str, tags: I) -> Self {
-        Self {
-            frame_type: Type::Decrease,
-            message,
-            tags,
-        }
+    pub fn increase(message: &'a str) -> Self {
+        Self::new(Type::Increase, message)
     }
 
-    pub fn count(count: isize, message: &'a str, tags: I) -> Self {
-        Self {
-            frame_type: Type::Count(count),
-            message,
-            tags,
-        }
+    pub fn decrease(message: &'a str) -> Self {
+        Self::new(Type::Decrease, message)
     }
 
-    pub fn gauge(value: &'a str, message: &'a str, tags: I) -> Self {
-        Self {
-            frame_type: Type::Gauge(value),
-            message,
-            tags,
-        }
+    pub fn count(count: isize, message: &'a str) -> Self {
+        Self::new(Type::Count(count), message)
     }
 
-    pub fn histogram(value: &'a str, message: &'a str, tags: I) -> Self {
-        Self {
-            frame_type: Type::Histogram(value),
-            message,
-            tags,
-        }
+    pub fn gauge(value: &'a str, message: &'a str) -> Self {
+        Self::new(Type::Gauge(value), message)
     }
 
-    pub fn distribution(value: &'a str, message: &'a str, tags: I) -> Self {
-        Self {
-            frame_type: Type::Distribution(value),
-            message,
-            tags,
-        }
+    pub fn histogram(value: &'a str, message: &'a str) -> Self {
+        Self::new(Type::Histogram(value), message)
     }
 
-    pub fn set(value: &'a str, message: &'a str, tags: I) -> Self {
-        Self {
-            frame_type: Type::Set(value),
-            message,
-            tags,
-        }
+    pub fn distribution(value: &'a str, message: &'a str) -> Self {
+        Self::new(Type::Distribution(value), message)
+    }
+
+    pub fn set(value: &'a str, message: &'a str) -> Self {
+        Self::new(Type::Set(value), message)
+    }
+
+    pub fn add_tag<T: Into<Tag<'a>>>(mut self, tag: T) -> Self {
+        self.tags.push(tag.into());
+        self
     }
 
     pub(crate) fn into_bytes(self) -> Bytes {
@@ -138,7 +116,17 @@ where
         }
 
         while next_tag.is_some() {
-            buf.extend_from_slice(next_tag.unwrap().as_ref().as_bytes());
+            let tag = next_tag.unwrap();
+            match tag {
+                Tag::Single(value) => {
+                    buf.extend_from_slice(value.as_bytes());
+                }
+                Tag::KeyValue(key, value) => {
+                    buf.extend_from_slice(key.as_bytes());
+                    buf.extend_from_slice(b":");
+                    buf.extend_from_slice(value.as_bytes());
+                }
+            }
             next_tag = tags_iter.next();
 
             if next_tag.is_some() {
@@ -156,37 +144,29 @@ mod test {
 
     #[test]
     fn test_into_bytes() {
-        let v: &[&str] = &[];
+        assert_eq!(Metric::increase("test").into_bytes().as_ref(), b"test:1|c");
+        assert_eq!(Metric::decrease("test").into_bytes().as_ref(), b"test:-1|c");
+        assert_eq!(Metric::count(2, "test").into_bytes().as_ref(), b"test:2|c");
         assert_eq!(
-            Metric::increase("test", v).into_bytes().as_ref(),
-            b"test:1|c"
-        );
-        assert_eq!(
-            Metric::decrease("test", v).into_bytes().as_ref(),
-            b"test:-1|c"
-        );
-        assert_eq!(
-            Metric::count(2, "test", v).into_bytes().as_ref(),
-            b"test:2|c"
-        );
-        assert_eq!(
-            Metric::gauge("1.2", "test", v).into_bytes().as_ref(),
+            Metric::gauge("1.2", "test").into_bytes().as_ref(),
             b"test:1.2|g"
         );
         assert_eq!(
-            Metric::histogram("1.2", "test", v).into_bytes().as_ref(),
+            Metric::histogram("1.2", "test").into_bytes().as_ref(),
             b"test:1.2|h"
         );
         assert_eq!(
-            Metric::distribution("1.2", "test", v).into_bytes().as_ref(),
+            Metric::distribution("1.2", "test").into_bytes().as_ref(),
             b"test:1.2|d"
         );
         assert_eq!(
-            Metric::set("1.2", "test", v).into_bytes().as_ref(),
+            Metric::set("1.2", "test").into_bytes().as_ref(),
             b"test:1.2|s"
         );
         assert_eq!(
-            Metric::increase("test", &["a:b", "c"])
+            Metric::increase("test")
+                .add_tag(("a", "b"))
+                .add_tag("c")
                 .into_bytes()
                 .as_ref(),
             b"test:1|c|#a:b,c"
