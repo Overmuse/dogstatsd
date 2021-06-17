@@ -1,6 +1,6 @@
 use crate::metric::Metric;
 use std::io::Error;
-use std::net::{ToSocketAddrs, UdpSocket};
+use tokio::net::{ToSocketAddrs, UdpSocket};
 
 pub struct Client<'a> {
     socket: UdpSocket,
@@ -8,27 +8,23 @@ pub struct Client<'a> {
 }
 
 impl<'a> Client<'a> {
-    pub fn new<T: ToSocketAddrs>(host_address: &T, target_address: &'a str) -> Result<Self, Error> {
+    pub async fn new<T: ToSocketAddrs>(
+        host_address: &T,
+        target_address: &'a str,
+    ) -> Result<Client<'a>, Error> {
         Ok(Self {
-            socket: UdpSocket::bind(host_address)?,
+            socket: UdpSocket::bind(host_address).await?,
             target: target_address,
         })
     }
 
-    pub fn send<I, T>(&self, metric: Metric<I, T>) -> Result<usize, Error>
+    pub async fn send<I, T>(&self, metric: Metric<'_, I, T>) -> Result<usize, Error>
     where
         I: IntoIterator<Item = T>,
         T: AsRef<str>,
     {
-        self.socket.send_to(metric.to_bytes().as_ref(), self.target)
-    }
-}
-
-impl Default for Client<'_> {
-    fn default() -> Self {
-        Self {
-            socket: UdpSocket::bind("127.0.0.1:0").unwrap(),
-            target: "127.0.0.1:8125",
-        }
+        self.socket
+            .send_to(metric.to_bytes().as_ref(), self.target)
+            .await
     }
 }
