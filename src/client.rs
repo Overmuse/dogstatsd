@@ -16,7 +16,7 @@ impl Client {
         Ok(Self { socket })
     }
 
-    pub async fn send<'a>(&self, metric: Metric<'a>) -> Result<(), Error> {
+    pub async fn send(&self, metric: Metric<'_>) -> Result<(), Error> {
         let bytes = metric.into_bytes();
         self.socket.send(&bytes).await?;
         Ok(())

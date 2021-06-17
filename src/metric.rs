@@ -116,7 +116,7 @@ impl<'a> Metric<'a> {
         }
 
         while next_tag.is_some() {
-            let tag = next_tag.unwrap().into();
+            let tag = next_tag.unwrap();
             match tag {
                 Tag::Single(value) => {
                     buf.extend_from_slice(value.as_bytes());

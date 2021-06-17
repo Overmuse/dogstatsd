@@ -17,9 +17,9 @@ impl<'a> From<(&'a str, &'a str)> for Tag<'a> {
     }
 }
 
-impl<'a> Into<Cow<'a, str>> for Tag<'a> {
-    fn into(self) -> Cow<'a, str> {
-        match self {
+impl<'a> From<Tag<'a>> for Cow<'a, str> {
+    fn from(tag: Tag<'a>) -> Cow<'a, str> {
+        match tag {
             Tag::Single(single) => single,
             Tag::KeyValue(key, value) => {
                 let mut out = key.to_string();
