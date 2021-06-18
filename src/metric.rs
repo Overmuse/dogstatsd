@@ -14,7 +14,7 @@ enum Type<'a> {
 pub struct Metric<'a> {
     frame_type: Type<'a>,
     message: &'a str,
-    tags: Vec<Tag<'a>>,
+    tags: Vec<Tag>,
 }
 
 impl<'a> Metric<'a> {
@@ -54,8 +54,14 @@ impl<'a> Metric<'a> {
         Self::new(Type::Set(value), message)
     }
 
-    pub fn add_tag<T: Into<Tag<'a>>>(mut self, tag: T) -> Self {
-        self.tags.push(tag.into());
+    pub fn add_tag<T: ToString>(mut self, tag: T) -> Self {
+        self.tags.push(Tag::Single(tag.to_string()));
+        self
+    }
+
+    pub fn add_key_value<K: ToString, V: ToString>(mut self, key: K, val: V) -> Self {
+        self.tags
+            .push(Tag::KeyValue(key.to_string(), val.to_string()));
         self
     }
 
@@ -163,9 +169,11 @@ mod test {
             Metric::set("1.2", "test").into_bytes().as_ref(),
             b"test:1.2|s"
         );
+
+        let val = String::from("b");
         assert_eq!(
             Metric::increase("test")
-                .add_tag(("a", "b"))
+                .add_key_value("a", val)
                 .add_tag("c")
                 .into_bytes()
                 .as_ref(),
